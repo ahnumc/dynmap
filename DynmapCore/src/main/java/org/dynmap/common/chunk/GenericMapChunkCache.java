@@ -1,9 +1,11 @@
 package org.dynmap.common.chunk;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.ListIterator;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.dynmap.DynmapChunk;
@@ -14,11 +16,11 @@ import org.dynmap.common.chunk.GenericChunkCache.ChunkCacheRec;
 import org.dynmap.hdmap.HDBlockModels;
 import org.dynmap.renderer.DynmapBlockState;
 import org.dynmap.renderer.RenderPatchFactory;
+import org.dynmap.utils.BlockStep;
+import org.dynmap.utils.DataBitsPacked;
 import org.dynmap.utils.DynIntHashMap;
 import org.dynmap.utils.MapChunkCache;
 import org.dynmap.utils.MapIterator;
-import org.dynmap.utils.BlockStep;
-import org.dynmap.utils.DataBitsPacked;
 import org.dynmap.utils.VisibilityLimit;
 
 /**
@@ -39,7 +41,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	private int snapcnt;
 	private GenericChunk[] snaparray; /* Index = (x-x_min) + ((z-z_min)*x_dim) */
 	private boolean[][] isSectionNotEmpty; /* Indexed by snapshot index, then by section index */
-	private AtomicInteger loadingChunks = new AtomicInteger(0); //the amount of threads loading chunks at this moment, used by async loading
+	private final AtomicInteger loadingChunks = new AtomicInteger(0); //the amount of threads loading chunks at this moment, used by async loading
 
 	private static final BlockStep unstep[] = { BlockStep.X_MINUS, BlockStep.Y_MINUS, BlockStep.Z_MINUS,
 			BlockStep.X_PLUS, BlockStep.Y_PLUS, BlockStep.Z_PLUS };
@@ -159,7 +161,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 			}
 		}
 
-		private final BiomeMap getBiomeRel(int dx, int dz) {
+		private BiomeMap getBiomeRel(int dx, int dz) {
 			int nx = x + dx;
 			int nz = z + dz;
 			int nchunkindex = ((nx >> 4) - x_min) + (((nz >> 4) - z_min) * x_dim);
@@ -172,7 +174,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 		
 		@Override
 		public final int getSmoothGrassColorMultiplier(int[] colormap) {
-			int mult = 0xFFFFFF;
+			int mult;
 
 			try {
 				int raccum = 0;
@@ -192,8 +194,8 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 				}
 				cnt = (cnt > 0) ? cnt : 1;
 				mult = ((raccum / cnt) << 16) | ((gaccum / cnt) << 8) | (baccum / cnt);
-			} catch (Exception x) {
-				//Log.info("getSmoothGrassColorMultiplier() error: " + x);
+			} catch (Exception exc) {
+				//Log.info("getSmoothGrassColorMultiplier() error: " + exc);
 				mult = 0xFFFFFF;
 			}
 
@@ -223,8 +225,8 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 				}
 				cnt = (cnt > 0) ? cnt : 1;
 				mult = ((raccum / cnt) << 16) | ((gaccum / cnt) << 8) | (baccum / cnt);
-			} catch (Exception x) {
-				//Log.info("getSmoothFoliageColorMultiplier() error: " + x);
+			} catch (Exception exc) {
+				//Log.info("getSmoothFoliageColorMultiplier() error: " + exc);
 			}
 			//Log.info(String.format("getSmoothFoliageColorMultiplier() at %d, %d = %X", x, z, mult));
 
@@ -258,8 +260,8 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 				}
 				cnt = (cnt > 0) ? cnt : 1;
 				mult = ((raccum / cnt) << 16) | ((gaccum / cnt) << 8) | (baccum / cnt);
-			} catch (Exception x) {
-				//Log.info("getSmoothColorMultiplier() error: " + x);
+			} catch (Exception exc) {
+				//Log.info("getSmoothColorMultiplier() error: " + exc);
 			}
 			//Log.info(String.format("getSmoothColorMultiplier() at %d, %d = %X", x, z, mult));
 
@@ -287,8 +289,8 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 				}
 				cnt = (cnt > 0) ? cnt : 1;
 				multv = ((raccum / cnt) << 16) | ((gaccum / cnt) << 8) | (baccum / cnt);
-			} catch (Exception x) {
-				//Log.info("getSmoothWaterColorMultiplier(nomap) error: " + x);
+			} catch (Exception exc) {
+				//Log.info("getSmoothWaterColorMultiplier(nomap) error: " + exc);
 			}
 			//Log.info(String.format("getSmoothWaterColorMultiplier(nomap) at %d, %d = %X", x, z, multv));
 
@@ -317,8 +319,8 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 				}
 				cnt = (cnt > 0) ? cnt : 1;
 				mult = ((raccum / cnt) << 16) | ((gaccum / cnt) << 8) | (baccum / cnt);
-			} catch (Exception x) {
-				//Log.info("getSmoothWaterColorMultiplier() error: " + x);
+			} catch (Exception exc) {
+				//Log.info("getSmoothWaterColorMultiplier() error: " + exc);
 			}
 			//Log.info(String.format("getSmoothWaterColorMultiplier() at %d, %d = %X", x, z, mult));
 
@@ -492,6 +494,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	    /**
 	     * Get world sealevel
 	     */
+        @Override
 	    public final int getWorldSeaLevel() {
 	    	return sealevel;
 	    }
@@ -533,7 +536,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 		public final long getInhabitedTicks() {
 			try {
 				return snap.getInhabitedTicks();
-			} catch (Exception x) {
+			} catch (Exception exc) {
 				return 0;
 			}
 		}
@@ -579,20 +582,20 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	private static final GenericChunkSection STONESECTION = (new GenericChunkSection.Builder()).singleBiome(BiomeMap.PLAINS).singleBlockState(DynmapBlockState.getBaseStateByName(DynmapBlockState.STONE_BLOCK)).build();
 	private static final GenericChunkSection WATERSECTION = (new GenericChunkSection.Builder()).singleBiome(BiomeMap.OCEAN).singleBlockState(DynmapBlockState.getBaseStateByName(DynmapBlockState.WATER_BLOCK)).build();
 
-	private GenericChunkCache cache;
+	private final GenericChunkCache cache;
 
 	// Lazy generic chunks (tailored to height of world)
 	private GenericChunk empty_chunk;
 	private GenericChunk stone_chunk;
 	private GenericChunk ocean_chunk;
 	
-	private final GenericChunk getEmpty() {
+	private GenericChunk getEmpty() {
 		if (empty_chunk == null) {
 			empty_chunk = (new GenericChunk.Builder(dw.minY, dw.worldheight)).build();
 		}
 		return empty_chunk;
 	}
-	private final GenericChunk getStone() {
+	private GenericChunk getStone() {
 		if (stone_chunk == null) {
 			GenericChunk.Builder bld = new GenericChunk.Builder(dw.minY, dw.worldheight);
 			for (int sy = -sectoff; sy < 4; sy++) { bld.addSection(sy, STONESECTION); }
@@ -600,7 +603,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 		}
 		return stone_chunk;		
 	}
-	private final GenericChunk getOcean() {
+	private GenericChunk getOcean() {
 		if (ocean_chunk == null) {
 			GenericChunk.Builder bld = new GenericChunk.Builder(dw.minY, dw.worldheight);
 			for (int sy = -sectoff; sy < 3; sy++) { bld.addSection(sy, STONESECTION); }
@@ -623,7 +626,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 		this.chunks = chunks;
 
 		/* Compute range */
-		if (chunks.size() == 0) {
+		if (chunks.isEmpty()) {
 			this.x_min = 0;
 			this.x_max = 0;
 			this.z_min = 0;
@@ -685,17 +688,26 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 
 	private boolean tryChunkCache(DynmapChunk chunk, boolean vis) {
 		/* Check if cached chunk snapshot found */
-		GenericChunk ss = null;
+		GenericChunk ss;
 		ChunkCacheRec ssr = cache.getSnapshot(dw.getName(), chunk.x, chunk.z);
 		if (ssr != null) {
 			ss = ssr.ss;
 			if (!vis) {
-				if (hidestyle == HiddenChunkStyle.FILL_STONE_PLAIN) {
-					ss = getStone();
-				} else if (hidestyle == HiddenChunkStyle.FILL_OCEAN) {
-					ss = getOcean();
-				} else {
-					ss = getEmpty();;
+				if (null == hidestyle) {
+					ss = getEmpty();
+				} 
+				else {
+					switch (hidestyle) {
+						case FILL_STONE_PLAIN:
+							ss = getStone();
+							break;
+						case FILL_OCEAN:
+							ss = getOcean();
+							break;
+						default:
+							ss = getEmpty();
+							break;
+					}
 				}
 			}
 			int idx = (chunk.x - x_min) + (chunk.z - z_min) * x_dim;
@@ -765,14 +777,21 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 						prepChunkSnapshot(chunk, ss);
 					}
 					else {
-						if (hidestyle == HiddenChunkStyle.FILL_STONE_PLAIN) {
-							ss = getStone();
-						}
-						else if (hidestyle == HiddenChunkStyle.FILL_OCEAN) {
-							ss = getOcean();
+						if (null == hidestyle) {
+							ss = getEmpty();
 						}
 						else {
-							ss = getEmpty();
+							switch (hidestyle) {
+								case FILL_STONE_PLAIN:
+									ss = getStone();
+									break;
+								case FILL_OCEAN:
+									ss = getOcean();
+									break;
+								default:
+									ss = getEmpty();
+									break;
+							}
 						}
 					}
 					snaparray[chunkindex] = ss;
@@ -827,12 +846,20 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 					if (vis) { // If visible
 						prepChunkSnapshot(dynmapChunk, ss);
 					} else {
-						if (hidestyle == HiddenChunkStyle.FILL_STONE_PLAIN) {
-							ss = getStone();
-						} else if (hidestyle == HiddenChunkStyle.FILL_OCEAN) {
-							ss = getOcean();
-						} else {
+						if (null == hidestyle) {
 							ss = getEmpty();
+						} else {
+							switch (hidestyle) {
+								case FILL_STONE_PLAIN:
+									ss = getStone();
+									break;
+								case FILL_OCEAN:
+									ss = getOcean();
+									break;
+								default:
+									ss = getEmpty();
+									break;
+							}
 						}
 					}
 					snaparray[chunkIndex] = ss;
@@ -902,14 +929,21 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 				if (ss != null) {
 					// If hidden
 					if (!vis) {
-						if (hidestyle == HiddenChunkStyle.FILL_STONE_PLAIN) {
-							ss = getStone();
-						}
-						else if (hidestyle == HiddenChunkStyle.FILL_OCEAN) {
-							ss = getOcean();
+						if (null == hidestyle) {
+							ss = getEmpty();
 						}
 						else {
-							ss = getEmpty();
+							switch (hidestyle) {
+								case FILL_STONE_PLAIN:
+									ss = getStone();
+									break;
+								case FILL_OCEAN:
+									ss = getOcean();
+									break;
+								default:
+									ss = getEmpty();
+									break;
+							}
 						}
 					}
 					else {
@@ -966,13 +1000,13 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 			return;
 		}
 
-		List<DynmapChunk> chunks;
+		List<DynmapChunk> chunkList;
 		if (iterator == null) {
 			iterator = Collections.emptyListIterator();
-			chunks = new ArrayList<>(this.chunks);
+			chunkList = new ArrayList<>(this.chunks);
 		} else {
-			chunks = new ArrayList<>();
-			iterator.forEachRemaining(chunks::add);
+			chunkList = new ArrayList<>();
+			iterator.forEachRemaining(chunkList::add);
 		}
 		//if before increent was 0, means that we are the first, so we need to set this
 		if (loadingChunks.getAndIncrement() == 0) {
@@ -983,8 +1017,8 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 			List<DynmapChunk> cached = new ArrayList<>();
 			List<SimplePair> notCached = new ArrayList<>();
 
-			iterator.forEachRemaining(chunks::add);
-			chunks.stream()
+			iterator.forEachRemaining(chunkList::add);
+			chunkList.stream()
 					.filter(chunk -> snaparray[(chunk.x - x_min) + (chunk.z - z_min) * x_dim] == null)
 					.forEach(chunk -> {
 						if (cache.getSnapshot(dw.getName(), chunk.x, chunk.z) == null) {
@@ -1009,12 +1043,20 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 						// Prep snapshot
 						prepChunkSnapshot(dynmapChunk, chunk);
 					} else {
-						if (hidestyle == HiddenChunkStyle.FILL_STONE_PLAIN) {
-							chunk = getStone();
-						} else if (hidestyle == HiddenChunkStyle.FILL_OCEAN) {
-							chunk = getOcean();
-						} else {
+						if (null == hidestyle) {
 							chunk = getEmpty();
+						} else {
+							switch (hidestyle) {
+								case FILL_STONE_PLAIN:
+									chunk = getStone();
+									break;
+								case FILL_OCEAN:
+									chunk = getOcean();
+									break;
+								default:
+									chunk = getEmpty();
+									break;
+							}
 						}
 					}
 					snaparray[(dynmapChunk.x - x_min) + (dynmapChunk.z - z_min) * x_dim] = chunk;
@@ -1043,6 +1085,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	/**
 	 * Test if done loading
 	 */
+	@Override
 	public boolean isDoneLoading() {
 		if (!dw.isLoaded()) {
 			return true;
@@ -1057,6 +1100,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	/**
 	 * Test if all empty blocks
 	 */
+	@Override
 	public boolean isEmpty() {
 		return isempty;
 	}
@@ -1064,6 +1108,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	/**
 	 * Unload chunks
 	 */
+	@Override
 	public void unloadChunks() {
 		if (snaparray != null) {
 			for (int i = 0; i < snaparray.length; i++) {
@@ -1086,6 +1131,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 		}
 	}
 
+	@Override
     public boolean isEmptySection(int sx, int sy, int sz) {
         int idx = (sx - x_min) + (sz - z_min) * x_dim;
     	boolean[] flags = isSectionNotEmpty[idx];
@@ -1099,6 +1145,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	/**
 	 * Get cache iterator
 	 */
+	@Override
 	public MapIterator getIterator(int x, int y, int z) {
 		if (dw.getEnvironment().equals("the_end")) {
 			return new OurEndMapIterator(x, y, z);
@@ -1109,6 +1156,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	/**
 	 * Set hidden chunk style (default is FILL_AIR)
 	 */
+	@Override
 	public void setHiddenFillStyle(HiddenChunkStyle style) {
 		this.hidestyle = style;
 	}
@@ -1117,9 +1165,10 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	 * Add visible area limit - can be called more than once Needs to be set before
 	 * chunks are loaded Coordinates are block coordinates
 	 */
+	@Override
 	public void setVisibleRange(VisibilityLimit lim) {
 		if (visible_limits == null)
-			visible_limits = new ArrayList<VisibilityLimit>();
+			visible_limits = new ArrayList<>();
 		visible_limits.add(lim);
 	}
 
@@ -1127,9 +1176,10 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 	 * Add hidden area limit - can be called more than once Needs to be set before
 	 * chunks are loaded Coordinates are block coordinates
 	 */
+	@Override
 	public void setHiddenRange(VisibilityLimit lim) {
 		if (hidden_limits == null)
-			hidden_limits = new ArrayList<VisibilityLimit>();
+			hidden_limits = new ArrayList<>();
 		hidden_limits.add(lim);
 	}
 
@@ -1156,8 +1206,10 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 		boolean lit = nbt.getBoolean("isLightOn");
 		boolean hasLitState = false;
 		if (status != null) {
-			for (int i = 0; i < litStates.length; i++) {
-				if (status.equals(litStates[i])) { hasLitState = true; }
+			for (String litState : litStates) {
+				if (status.equals(litState)) {
+					hasLitState = true;
+				}
 			}
 		}
 		boolean hasLight = false; // pessimistic: only has light if we see it, due to WB and other flawed chunk generation hasLitState;	// Assume good light in a lit state
@@ -1181,7 +1233,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
         	if (bb != null) {
         		// If v1.15+ format
         		if (bb.length > 256) {
-        			old3d = new ArrayList<BiomeMap[]>();
+        			old3d = new ArrayList<>();
         			// Get 4 x 4 x 4 list for each section
         			for (int sect = 0; sect < (bb.length / 64); sect++) {
         				BiomeMap smap[] = new BiomeMap[64];
@@ -1208,7 +1260,7 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
             GenericNBTCompound sec = sect.getCompound(i);
             int secnum = sec.getByte("Y");
             
-            DynmapBlockState[] palette = null;
+            DynmapBlockState[] palette;
             // If we've got palette and block states list, process non-empty section
             if (sec.contains("Palette", 9) && sec.contains("BlockStates", 12)) {
                 GenericNBTList plist = sec.getList("Palette", 10);
@@ -1237,6 +1289,8 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
             	int bitsperblock = 64 / recsperblock;
             	GenericBitStorage db = null;
             	DataBitsPacked dbp = null;
+				DynmapBlockState lastState = null;
+				int lastIndex = -1;
             	try {
             		db = nbt.makeBitStorage(bitsperblock, 4096, statelist);
             	} catch (Exception ex) {	// Handle legacy encoded
@@ -1244,17 +1298,45 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
             		dbp = new DataBitsPacked(bitsperblock, 4096, statelist);
             	}
                 if (bitsperblock > 8) {	// Not palette
-                    for (int j = 0; j < 4096; j++) {
-                    	int v = (dbp != null) ? dbp.getAt(j) : db.get(j);
-                    	sbld.xyzBlockState(j & 0xF, (j & 0xF00) >> 8, (j & 0xF0) >> 4, DynmapBlockState.getStateByGlobalIndex(v));
-                    }
+					if (dbp != null) {
+						// Loop through section (yzx order)
+						for (int j = 0; j < 4096; j++) {
+							int v = dbp.getAt(j);
+							if (v != lastIndex) {
+								lastState = DynmapBlockState.getStateByGlobalIndex(v);
+								lastIndex = v;
+							}
+							sbld.xyzBlockState(j, lastState);
+						}
+					}
+					else if (db != null) {
+						// Loop through section (yzx order)
+						for (int j = 0; j < 4096; j++) {
+	                    	int v = db.get(j);
+							if (v != lastIndex) {
+								lastState = DynmapBlockState.getStateByGlobalIndex(v);
+								lastIndex = v;
+							}
+    	                	sbld.xyzBlockState(j, lastState);
+        	            }
+					}
                 }
                 else {
     				sbld.xyzBlockStatePalette(palette);	// Set palette
-    				for (int j = 0; j < 4096; j++) {
-    					int v = db != null ? db.get(j) : dbp.getAt(j);
-                    	sbld.xyzBlockStateInPalette(j & 0xF, (j & 0xF00) >> 8, (j & 0xF0) >> 4, (short)v);
-    				}
+					if (db != null) {
+						// Loop through section (yzx order)
+						for (int j = 0; j < 4096; j++) {
+	    					int v = db.get(j);
+    	                	sbld.xyzBlockStateInPalette(j, (short)v);
+    					}
+					}
+					else if (dbp != null) {
+						// Loop through section (yzx order)
+	    				for (int j = 0; j < 4096; j++) {
+    						int v = dbp.getAt(j);
+        	            	sbld.xyzBlockStateInPalette(j, (short)v);
+    					}
+					}
                 }
             }
             else if (sec.contains("block_states", GenericNBTCompound.TAG_COMPOUND)) {	// 1.18
@@ -1295,19 +1377,21 @@ public abstract class GenericMapChunkCache extends MapChunkCache {
 		            	bitsperblock = (statelist.length * 64) / 4096;
 	            		dbp = new DataBitsPacked(bitsperblock, 4096, statelist);
         			}
-        			//if (bitsperblock > 8) {    // Not palette
-        			//	for (int j = 0; j < 4096; j++) {
-        			//		int v = db != null ? db.get(j) : dbp.getAt(j);
-                    //    	sbld.xyzBlockState(j & 0xF, (j & 0xF00) >> 8, (j & 0xF0) >> 4, DynmapBlockState.getStateByGlobalIndex(v));
-        			//	}
-        			//}
-        			//else {
-        				sbld.xyzBlockStatePalette(palette);	// Set palette
-        				for (int j = 0; j < 4096; j++) {
-        					int v = db != null ? db.get(j) : dbp.getAt(j);
-                        	sbld.xyzBlockStateInPalette(j & 0xF, (j & 0xF00) >> 8, (j & 0xF0) >> 4, (short)v);
-        				}
-        			//}
+					sbld.xyzBlockStatePalette(palette);	// Set palette
+					if (db != null) {
+						// Loop through section (yzx order)
+						for (int j = 0; j < 4096; j++) {
+							int v = db.get(j);
+							sbld.xyzBlockStateInPalette(j, (short)v);
+						}
+					}
+					else if (dbp != null) {
+						// Loop through section (yzx order)
+						for (int j = 0; j < 4096; j++) {
+							int v = dbp.getAt(j);
+							sbld.xyzBlockStateInPalette(j, (short)v);
+						}
+					}
             	}
             }
             if (sec.contains("BlockLight")) {
