@@ -3,7 +3,6 @@ package org.dynmap.bukkit.helper;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 
@@ -68,7 +67,7 @@ public class BukkitVersionHelperCB extends BukkitVersionHelperGeneric {
             Method m = srv.getClass().getMethod("getHandle");
             Object scm = m.invoke(srv); /* And use it to get SCM (nms object) */
             return scm.getClass().getPackage().getName();
-        } catch (Exception x) {
+        } catch (IllegalAccessException | NoSuchMethodException | SecurityException | InvocationTargetException x) {
             Log.severe("Error finding net.minecraft.server packages");
             return null;
         }
@@ -260,9 +259,7 @@ public class BukkitVersionHelperCB extends BukkitVersionHelperGeneric {
                 }
             }
             return names;
-        } catch (IllegalArgumentException e) {
-        } catch (IllegalAccessException e) {
-        } catch (InvocationTargetException e) {
+        } catch (IllegalArgumentException | IllegalAccessException | InvocationTargetException e) {
         }
         return new String[0];
     }
@@ -273,11 +270,11 @@ public class BukkitVersionHelperCB extends BukkitVersionHelperGeneric {
     public String[] getBiomeNames() {
         String[] names;
         /* Find array of biomes in biomebase */
-        Object[] biomelist = getBiomeBaseList();
-        names = new String[biomelist.length];
+        Object[] biomeList = getBiomeBaseList();
+        names = new String[biomeList.length];
         /* Loop through list, starting afer well known biomes */
-        for(int i = 0; i < biomelist.length; i++) {
-            Object bb = biomelist[i];
+        for(int i = 0; i < biomeList.length; i++) {
+            Object bb = biomeList[i];
             if(bb != null) {
                 names[i] = getBiomeBaseIDString(bb);
             }
@@ -310,7 +307,6 @@ public class BukkitVersionHelperCB extends BukkitVersionHelperGeneric {
                 }
             }
             else if (blockbyidfunc != null) {
-                ArrayList<Object> mats = new ArrayList<Object>();
                 for (int i = 0; i < map.length; i++) {
                     Object blk = blockbyidfunc.invoke(nmsblock, i);
                     if (blk != null) {
@@ -324,9 +320,7 @@ public class BukkitVersionHelperCB extends BukkitVersionHelperGeneric {
                 }
             }
             return map;
-        } catch (IllegalArgumentException e) {
-        } catch (IllegalAccessException e) {
-        } catch (InvocationTargetException e) {
+        } catch (IllegalArgumentException | IllegalAccessException | InvocationTargetException e) {
         }
         return new BukkitMaterial[0];
     }
@@ -359,6 +353,7 @@ public class BukkitVersionHelperCB extends BukkitVersionHelperGeneric {
     /**
      * Get list of defined biomebase objects
      */
+    @Override
     public Object[] getBiomeBaseList() {
         if ((getbiomebyid != null) || (getbiomefunc != null)) {
             if (biomelist == null) {
@@ -369,9 +364,7 @@ public class BukkitVersionHelperCB extends BukkitVersionHelperGeneric {
                             biomelist[i] = getbiomefunc.invoke(biomebase, i, null);
                         else
                             biomelist[i] = getbiomebyid.invoke(biomebase, i);
-                    } catch (IllegalAccessException x) {
-                    } catch (IllegalArgumentException x) {
-                    } catch (InvocationTargetException x) {
+                    } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException x) {
                     }
                 }
             }
@@ -380,13 +373,12 @@ public class BukkitVersionHelperCB extends BukkitVersionHelperGeneric {
         return super.getBiomeBaseList();
     }
     /** Get ID from biomebase */
+    @Override
     public int getBiomeBaseID(Object bb) {
         if (getidbybiome != null) {
             try {
                 return (Integer) getidbybiome.invoke(biomebase,  bb);
-            } catch (IllegalAccessException e) {
-            } catch (IllegalArgumentException e) {
-            } catch (InvocationTargetException e) {
+            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
             }
         }
         return super.getBiomeBaseID(bb);
@@ -411,9 +403,7 @@ public class BukkitVersionHelperCB extends BukkitVersionHelperGeneric {
             			return nm.substring(off1+1, off2);
             		}
                 }
-            } catch (IllegalAccessException x) {
-            } catch (IllegalArgumentException x) {
-            } catch (InvocationTargetException x) {
+            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException x) {
             }
     	}
     	return "meta=" + meta;

@@ -6,10 +6,10 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 
-import org.bukkit.World;
 import org.bukkit.Chunk;
-import org.bukkit.block.Biome;
 import org.bukkit.ChunkSnapshot;
+import org.bukkit.World;
+import org.bukkit.block.Biome;
 import org.dynmap.DynmapChunk;
 import org.dynmap.DynmapCore;
 import org.dynmap.DynmapWorld;
@@ -19,10 +19,10 @@ import org.dynmap.common.BiomeMap;
 import org.dynmap.hdmap.HDBlockModels;
 import org.dynmap.renderer.DynmapBlockState;
 import org.dynmap.renderer.RenderPatchFactory;
+import org.dynmap.utils.BlockStep;
 import org.dynmap.utils.DynIntHashMap;
 import org.dynmap.utils.MapChunkCache;
 import org.dynmap.utils.MapIterator;
-import org.dynmap.utils.BlockStep;
 import org.dynmap.utils.VisibilityLimit;
 
 /**
@@ -79,8 +79,8 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
     private static final BlockStep unstep[] = { BlockStep.X_MINUS, BlockStep.Y_MINUS, BlockStep.Z_MINUS,
         BlockStep.X_PLUS, BlockStep.Y_PLUS, BlockStep.Z_PLUS };
 
-    private static BiomeMap[] biome_to_bmap;
-    private static Biome[] biome_by_id;
+    private static final BiomeMap[] biome_to_bmap;
+    private static final Biome[] biome_by_id;
 
     protected static final int getIndexInChunk(int cx, int cy, int cz) {
         return (cy << 8) | (cz << 4) | cx;
@@ -145,7 +145,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
         public int getBlockSkyLight() {
             try {
                 return snap.getBlockSkyLight(bx, y, bz);
-            } catch (ArrayIndexOutOfBoundsException | IllegalArgumentException x) {
+            } catch (ArrayIndexOutOfBoundsException | IllegalArgumentException exc) {
             }
             return 15;
         }
@@ -153,7 +153,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
         public final int getBlockEmittedLight() {
             try {
                 return snap.getBlockEmittedLight(bx, y, bz);
-            } catch (ArrayIndexOutOfBoundsException | IllegalArgumentException x) {
+            } catch (ArrayIndexOutOfBoundsException | IllegalArgumentException exc) {
             }
             return 0;
         }
@@ -276,7 +276,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
         }
         @Override
         public final int getSmoothGrassColorMultiplier(int[] colormap) {
-            int mult = 0xFFFFFF;
+            int mult;
             try {
                 int rx = x - x_base;
                 int rz = z - z_base;
@@ -299,14 +299,14 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                     }
                     mult = ((raccum / 9) << 16) | ((gaccum / 9) << 8) | (baccum / 9);
                 }
-            } catch (Exception x) {
+            } catch (Exception exc) {
                 mult = 0xFFFFFF;
             }
             return mult;
         }
         @Override
         public final int getSmoothFoliageColorMultiplier(int[] colormap) {
-            int mult = 0xFFFFFF;
+            int mult;
             try {
                 int rx = x - x_base;
                 int rz = z - z_base;
@@ -329,14 +329,14 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                     }
                     mult = ((raccum / 9) << 16) | ((gaccum / 9) << 8) | (baccum / 9);
                 }
-            } catch (Exception x) {
+            } catch (Exception exc) {
                 mult = 0xFFFFFF;
             }
             return mult;
         }
         @Override
         public final int getSmoothColorMultiplier(int[] colormap, int[] swampmap) {
-            int mult = 0xFFFFFF;
+            int mult;
             try {
                 int rx = x - x_base;
                 int rz = z - z_base;
@@ -370,7 +370,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                     }
                     mult = ((raccum / 9) << 16) | ((gaccum / 9) << 8) | (baccum / 9);
                 }
-            } catch (Exception x) {
+            } catch (Exception exc) {
                 mult = 0xFFFFFF;
             }
             return mult;
@@ -397,13 +397,13 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                     }
                 }
                 return ((raccum / 9) << 16) | ((gaccum / 9) << 8) | (baccum / 9);
-            } catch (Exception x) {
+            } catch (Exception exc) {
                 return 0xFFFFFF;
             }
         }
         @Override
         public final int getSmoothWaterColorMultiplier(int[] colormap) {
-            int mult = 0xFFFFFF;
+            int mult;
             try {
                 int rx = x - x_base;
                 int rz = z - z_base;
@@ -426,8 +426,8 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                     }
                     mult = ((raccum / 9) << 16) | ((gaccum / 9) << 8) | (baccum / 9);
                 }
-            } catch (Exception x) {
-            	Log.warning("Water colormult exception", x);
+            } catch (Exception exc) {
+            	Log.warning("Water colormult exception", exc);
                 mult = 0xFFFFFF;
             }
             return mult;
@@ -562,21 +562,32 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
         }
         @Override
         public final DynmapBlockState getBlockTypeAt(BlockStep s) {
-            if(s == BlockStep.Y_MINUS) {
-                if(y > ymin)
-                    return snap.getBlockType(bx, y-1, bz);
-            }
-            else if(s == BlockStep.Y_PLUS) {
-                if(y < (worldheight-1))
-                    return snap.getBlockType(bx, y+1, bz);
-            }
-            else {
+            if (null == s) {
                 BlockStep ls = laststep;
                 stepPosition(s);
                 DynmapBlockState tid = snap.getBlockType(bx, y, bz);
                 unstepPosition();
                 laststep = ls;
                 return tid;
+            }
+            else {
+                switch (s) {
+                    case Y_MINUS:
+                        if(y > ymin)
+                            return snap.getBlockType(bx, y-1, bz);
+                        break;
+                    case Y_PLUS:
+                        if(y < (worldheight-1))
+                            return snap.getBlockType(bx, y+1, bz);
+                        break;
+                    default:
+                        BlockStep ls = laststep;
+                        stepPosition(s);
+                        DynmapBlockState tid = snap.getBlockType(bx, y, bz);
+                        unstepPosition();
+                        laststep = ls;
+                        return tid;
+                }
             }
             return DynmapBlockState.AIR;
         }
@@ -614,7 +625,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                         return vals[i+1];
                     }
                 }
-            } catch (Exception x) {
+            } catch (Exception exc) {
             }
             return null;
         }
@@ -626,7 +637,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
             int idx = ((xx >> 4) - x_min) + (((zz >> 4) - z_min) * x_dim);
             try {
                 return snaparray[idx].getBlockType(xx & 0xF, yy, zz & 0xF);
-            } catch (Exception x) {
+            } catch (Exception exc) {
                 return DynmapBlockState.AIR;
             }
         }
@@ -639,7 +650,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
         public long getInhabitedTicks() {
             try {
                 return inhabitedTicks[chunkindex];
-            } catch (Exception x) {
+            } catch (Exception exc) {
                 return 0;
             }
         }
@@ -669,6 +680,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
      * Chunk cache for representing unloaded chunk (or air)
      */
     private static class EmptyChunk implements Snapshot {
+        @Override
         public final DynmapBlockState getBlockType(int x, int y, int z) {
             return DynmapBlockState.AIR;
         }
@@ -702,7 +714,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
      * Chunk cache for representing generic stone chunk
      */
     private static class PlainChunk implements Snapshot {
-        private DynmapBlockState fill;
+        private final DynmapBlockState fill;
         PlainChunk(String blockname) { this.fill = DynmapBlockState.getBaseStateByName(blockname); }
 
 		@Override
@@ -736,9 +748,9 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
     }
     
     // Well known choices for hidden/empty chunks
-    protected static final EmptyChunk EMPTY = new EmptyChunk();
-    protected static final PlainChunk STONE = new PlainChunk(DynmapBlockState.STONE_BLOCK);
-    protected static final PlainChunk OCEAN = new PlainChunk(DynmapBlockState.WATER_BLOCK);
+    protected static final Snapshot EMPTY = new EmptyChunk();
+    protected static final Snapshot STONE = new PlainChunk(DynmapBlockState.STONE_BLOCK);
+    protected static final Snapshot OCEAN = new PlainChunk(DynmapBlockState.WATER_BLOCK);
 
     /**
      * Construct empty cache
@@ -753,13 +765,13 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
         this.dw = dw;
         this.w = dw.getWorld();
         if(this.w == null) {
-            this.chunks = new ArrayList<DynmapChunk>();
+            this.chunks = new ArrayList<>();
         }
         nsect = (dw.worldheight - dw.minY) >> 4;
         sectoff = (-dw.minY) >> 4;
         this.chunks = chunks;
         /* Compute range */
-        if(chunks.size() == 0) {
+        if (chunks.isEmpty()) {
             this.x_min = 0;
             this.x_max = 0;
             this.z_min = 0;
@@ -792,6 +804,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
     public abstract Snapshot wrapChunkSnapshot(ChunkSnapshot css);
 
     // Load chunk snapshots
+    @Override
     public int loadChunks(int max_to_load) {
         if(dw.isLoaded() == false)
             return 0;
@@ -826,19 +839,28 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                 }
             }
             /* Check if cached chunk snapshot found */
-            Snapshot ss = null;
-            long inhabited_ticks = 0;
-            DynIntHashMap tileData = null;
+            Snapshot ss;
+            long inhabited_ticks;
+            DynIntHashMap tileData;
             SnapshotRec ssr = SnapshotCache.sscache.getSnapshot(dw.getName(), chunk.x, chunk.z, blockdata, biome, biomeraw, highesty); 
             if(ssr != null) {
                 inhabited_ticks = ssr.inhabitedTicks;
                 if(!vis) {
-                    if(hidestyle == HiddenChunkStyle.FILL_STONE_PLAIN)
-                        ss = STONE;
-                    else if(hidestyle == HiddenChunkStyle.FILL_OCEAN)
-                        ss = OCEAN;
-                    else
+                    if (null == hidestyle)
                         ss = EMPTY;
+                    else {
+                        switch (hidestyle) {
+                            case FILL_STONE_PLAIN:
+                                ss = STONE;
+                                break;
+                            case FILL_OCEAN:
+                                ss = OCEAN;
+                                break;
+                            default:
+                                ss = EMPTY;
+                                break;
+                        }
+                    }
                 }
                 else {
                 	ss = ssr.ss;
@@ -876,12 +898,22 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                 /* Get inhabited ticks count */
                 inhabited_ticks = BukkitVersionHelper.helper.getInhabitedTicks(c);
                 if(!vis) {
-                    if(hidestyle == HiddenChunkStyle.FILL_STONE_PLAIN)
-                        ss = STONE;
-                    else if(hidestyle == HiddenChunkStyle.FILL_OCEAN)
-                        ss = OCEAN;
-                    else
+                    if(null == hidestyle) {
                         ss = EMPTY;
+                    }
+                    else {
+                        switch (hidestyle) {
+                            case FILL_STONE_PLAIN:
+                                ss = STONE;
+                                break;
+                            case FILL_OCEAN:
+                                ss = OCEAN;
+                                break;
+                            default:
+                                ss = EMPTY;
+                                break;
+                        }
+                    }
                 }
                 else {
                 	ChunkSnapshot css;
@@ -889,7 +921,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                         css = c.getChunkSnapshot(highesty, biome, biomeraw);
                         ss = wrapChunkSnapshot(css);
                         /* Get tile entity data */
-                        List<Object> vals = new ArrayList<Object>();
+                        List<Object> vals = new ArrayList<>();
                         Map<?,?> tileents = BukkitVersionHelper.helper.getTileEntitiesForChunk(c);
                         for(Object t : tileents.values()) {
                             int te_x = BukkitVersionHelper.helper.getTileEntityX(t);
@@ -909,8 +941,8 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
                                         vals.add(val);
                                     }
                                 }
-                                if(vals.size() > 0) {
-                                    Object[] vlist = vals.toArray(new Object[vals.size()]);
+                                if (!vals.isEmpty()) {
+                                    Object[] vlist = vals.toArray(new Object[0]);
                                     tileData.put(getIndexInChunk(cx,te_y,cz), vlist);
                                 }
                             }
@@ -985,6 +1017,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
     /**
      * Test if done loading
      */
+    @Override
     public boolean isDoneLoading() {
         if(dw.isLoaded() == false) {
             isempty = true;
@@ -998,12 +1031,14 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
     /**
      * Test if all empty blocks
      */
+    @Override
     public boolean isEmpty() {
         return isempty;
     }
     /**
      * Unload chunks
      */
+    @Override
     public void unloadChunks() {
         if(snaparray != null) {
             for(int i = 0; i < snaparray.length; i++) {
@@ -1023,6 +1058,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
             }
         }
     }
+    @Override
     public boolean isEmptySection(int sx, int sy, int sz) {
         int idx = (sx - x_min) + (sz - z_min) * x_dim;
     	boolean[] flags = isSectionNotEmpty[idx];
@@ -1036,6 +1072,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
     /**
      * Get cache iterator
      */
+    @Override
     public MapIterator getIterator(int x, int y, int z) {
         if(w.getEnvironment().toString().equals("THE_END"))
             return new OurEndMapIterator(x, y, z);
@@ -1044,6 +1081,7 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
     /**
      * Set hidden chunk style (default is FILL_AIR)
      */
+    @Override
     public void setHiddenFillStyle(HiddenChunkStyle style) {
         this.hidestyle = style;
     }
@@ -1052,9 +1090,10 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
      * Needs to be set before chunks are loaded
      * Coordinates are block coordinates
      */
+    @Override
     public void setVisibleRange(VisibilityLimit lim) {
         if(visible_limits == null)
-            visible_limits = new ArrayList<VisibilityLimit>();
+            visible_limits = new ArrayList<>();
         visible_limits.add(lim);
     }
     /**
@@ -1062,9 +1101,10 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
      * Needs to be set before chunks are loaded
      * Coordinates are block coordinates
      */
+    @Override
     public void setHiddenRange(VisibilityLimit lim) {
         if(hidden_limits == null)
-            hidden_limits = new ArrayList<VisibilityLimit>();
+            hidden_limits = new ArrayList<>();
         hidden_limits.add(lim);
     }
     @Override
@@ -1100,12 +1140,12 @@ public abstract class AbstractMapChunkCache extends MapChunkCache {
         for(int i = 0; i < biome_to_bmap.length; i++) {
             biome_to_bmap[i] = BiomeMap.NULL;
         }
-        for(int i = 0; i < b.length; i++) {
-            String bs = b[i].toString();
-            for(int j = 0; j < bm.length; j++) {
-                if(bm[j].toString().equals(bs)) {
-                    biome_to_bmap[b[i].ordinal()] = bm[j];
-                    biome_by_id[j] = b[i];
+        for (Biome b1 : b) {
+            String bs = b1.toString();
+            for (int j = 0; j < bm.length; j++) {
+                if (bm[j].toString().equals(bs)) {
+                    biome_to_bmap[b1.ordinal()] = bm[j];
+                    biome_by_id[j] = b1;
                     break;
                 }
             }

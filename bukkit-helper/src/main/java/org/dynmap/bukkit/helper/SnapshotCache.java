@@ -2,14 +2,14 @@ package org.dynmap.bukkit.helper;
 
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
-import java.lang.ref.WeakReference;
 import java.lang.ref.SoftReference;
+import java.lang.ref.WeakReference;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import org.dynmap.utils.DynIntHashMap;
 import org.dynmap.bukkit.helper.AbstractMapChunkCache.Snapshot;
+import org.dynmap.utils.DynIntHashMap;
 
 public class SnapshotCache {
 	
@@ -22,12 +22,12 @@ public class SnapshotCache {
     };
 
     private CacheHashMap snapcache;
-    private ReferenceQueue<SnapshotRec> refqueue;
+    private final ReferenceQueue<SnapshotRec> refqueue;
     private long cache_attempts;
     private long cache_success;
-    private boolean softref;
+    private final boolean softref;
     
-    private static class CacheRec {
+    protected static class CacheRec {
         Reference<SnapshotRec> ref;
         boolean hasbiome;
         boolean hasrawbiome;
@@ -37,14 +37,15 @@ public class SnapshotCache {
     
     @SuppressWarnings("serial")
     public class CacheHashMap extends LinkedHashMap<String, CacheRec> {
-        private int limit;
+        private final int limit;
         private IdentityHashMap<Reference<SnapshotRec>, String> reverselookup;
 
         public CacheHashMap(int lim) {
             super(16, (float)0.75, true);
             limit = lim;
-            reverselookup = new IdentityHashMap<Reference<SnapshotRec>, String>();
+            reverselookup = new IdentityHashMap<>();
         }
+        @Override
         protected boolean removeEldestEntry(Map.Entry<String, CacheRec> last) {
             boolean remove = (size() >= limit);
             if(remove) {
@@ -59,7 +60,7 @@ public class SnapshotCache {
      */
     public SnapshotCache(int max_size, boolean softref) {
         snapcache = new CacheHashMap(max_size);
-        refqueue = new ReferenceQueue<SnapshotRec>();
+        refqueue = new ReferenceQueue<>();
         this.softref = softref;
     }
     private String getKey(String w, int cx, int cz) {
@@ -110,10 +111,11 @@ public class SnapshotCache {
             }
         }
         if(ss != null) {
-            if((blockdata && (!rec.hasblockdata)) ||
-                    (biome && (!rec.hasbiome)) ||
-                    (biomeraw && (!rec.hasrawbiome)) ||
-                    (highesty && (!rec.hashighesty))) {
+            if((rec == null) ||
+                (blockdata && (!rec.hasblockdata)) ||
+                (biome && (!rec.hasbiome)) ||
+                (biomeraw && (!rec.hasrawbiome)) ||
+                (highesty && (!rec.hashighesty))) {
                 ss = null;
             }
         }
@@ -135,9 +137,9 @@ public class SnapshotCache {
         rec.hasrawbiome = biomeraw;
         rec.hashighesty = highesty;
         if (softref)
-            rec.ref = new SoftReference<SnapshotRec>(ss, refqueue);
+            rec.ref = new SoftReference<>(ss, refqueue);
         else
-            rec.ref = new WeakReference<SnapshotRec>(ss, refqueue);
+            rec.ref = new WeakReference<>(ss, refqueue);
         CacheRec prevrec = snapcache.put(key, rec);
         if(prevrec != null) {
             snapcache.reverselookup.remove(prevrec.ref);

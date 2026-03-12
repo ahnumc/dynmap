@@ -168,7 +168,7 @@ public abstract class BukkitVersionHelper {
                 DynmapBlockState basebs = null;
                 for (int m = 0; m < 16; m++) {
                 	String sn = helper.getStateStringByCombinedId(i, m);
-                    DynmapBlockState bs = new DynmapBlockState(basebs, m, bn, sn, mat.name, i);
+                    DynmapBlockState bs = new DynmapBlockState(basebs, m, bn, sn, (mat != null) ? mat.name : null, i);
                     if (basebs == null) basebs = bs;
                     stateByID[(i << 4) + m] = bs;
                     if (mat != null) {
